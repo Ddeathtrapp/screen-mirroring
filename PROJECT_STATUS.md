@@ -6,6 +6,19 @@ Updated: 2026-03-18
 
 Build a private, ad-free casting system that lets an iPhone or iPad mirror to either an Android/Android TV receiver or a desktop browser with the lowest practical latency. The backend stays small and acts only as the control plane for pairing, signaling, lightweight device registration, and session lifecycle.
 
+## Implemented in this turn
+
+- Root monorepo skeleton with workspace-friendly layout.
+- Root `.gitignore`.
+- Root `README.md` with exact local run steps.
+- Root `package.json` with minimal workspace scripts.
+- Empty folder scaffolding for `apps/ios-sender`, `apps/android-receiver`, `apps/web-receiver`, `services/backend`, `packages/protocol`, and `infra/docker`.
+- `packages/protocol` with shared session states, pairing endpoints, WebSocket message types, and error codes.
+- `services/backend` scaffold with Fastify + `ws`, in-memory session store, pairing-code creation, pairing-code claim, heartbeat, session end, and signaling WebSocket auth/relay.
+- `apps/web-receiver` scaffold that creates a receiver pairing code, opens signaling, and prepares a receive-only WebRTC peer connection.
+- Clear `TODO(SQLite)` placeholders where durable persistence will replace in-memory state.
+- Browser/backend dev wiring for local cross-origin development.
+
 ## Chosen v1 architecture
 
 - Transport: WebRTC, one sender to one receiver.
@@ -44,9 +57,10 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Restrictive networks may still fail even with TURN/TCP or TURN/TLS.
 - Mobile sender thermal throttling, battery drain, and unstable background behavior can reduce session quality.
 - Android TV hardware decode and browser autoplay/codec behavior need device-level testing early.
+- This environment does not currently have `node` or `npm` on `PATH`, so in-session runtime verification was limited to static integration review rather than actually launching the services.
 
 ## Next 3 implementation tasks
 
-1. Create the repo skeleton and write the shared signaling/session protocol contract.
-2. Stand up the backend service with pairing-code creation, session tokens, WebSocket signaling, and heartbeat expiry.
-3. Build the web receiver shell that can join by code, connect to signaling, and render a remote WebRTC stream.
+1. Add a minimal sender implementation for development, or begin the iOS sender shell, so offer/answer and ICE can be exercised end to end.
+2. Harden backend session cleanup, reconnect windows, and heartbeat-driven expiry semantics.
+3. Replace the in-memory store with SQLite WAL while keeping the protocol and WebSocket contract unchanged.

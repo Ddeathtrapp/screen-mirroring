@@ -1,0 +1,14 @@
+{
+  "name": "screen-mirroring",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "check": "npm run check --workspaces --if-present",
+    "dev:backend": "npm run dev --workspace @screen-mirroring/backend",
+    "dev:web": "npm run dev --workspace @screen-mirroring/web-receiver"
+  }
+}

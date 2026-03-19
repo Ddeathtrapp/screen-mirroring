@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.cache/
+.turbo/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+coverage/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
