@@ -8,6 +8,8 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 
 ## Implemented in this turn
 
+- `apps/android-receiver` now has the first Android TV receiver shell packaged as a minimal Android Studio app target, with backend URL entry, receiver name entry, create-pairing-code flow, session display, signaling connect/disconnect, and honest receiver-side status updates.
+- `apps/android-receiver` docs now describe the receiver-side smoke test, including the emulator-local backend URL (`http://10.0.2.2:8787`) and the remaining non-media TODOs.
 - `apps/ios-sender` now has a minimal native claim-and-signaling shell plus a small Xcode project/workspace so the app can be opened and launched from Xcode.
 - `SenderBackendClient.swift` and `SenderBackendModels.swift` can claim a pairing code against the existing backend and parse the returned session ticket.
 - `SenderViewModel.swift` now tracks backend URL, pairing code, sender name, claim loading, claimed success, signaling connection attempts, signaling success, signaling failure, and clean disconnects.
@@ -33,6 +35,7 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Backend logs for pairing creation, sender claim, signaling connect, relay attempts, and disconnect transitions.
 - Low apparent FPS in the dev sender was traced to browser background-tab throttling of the synthetic canvas loop, not to the backend, signaling, or receiver pipeline.
 - The iOS shell now includes project/workspace packaging plus the code paths to claim a session and open the backend signaling socket returned by the claim response, but it still does not publish media and has not been run here in Xcode in this environment.
+- The Android TV shell is packaged as an Android Studio app target, but I could not run Android Studio from this environment to verify the build at runtime here.
 
 ## Chosen v1 architecture
 
@@ -76,9 +79,10 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
 - The iOS sender shell now has the project/workspace needed for Xcode launch and includes local-development HTTP allowances, but I could not run Xcode from this environment to verify the launch at runtime here.
 - The iOS sender shell can claim and connect signaling, but it still does not handle offer/answer or ICE beyond the existing signaling-shell handoff.
+- The Android TV receiver shell still does not render media or implement WebRTC, and it is limited to pairing plus signaling join state.
 
 ## Next 3 implementation tasks
 
-1. Add the first ReplayKit Broadcast Upload Extension shell without attempting native streaming yet.
-2. Add sender offer/answer forwarding and ICE relay on top of the existing iOS signaling socket.
-3. Add sender session continuity and end handling around the claimed iOS session ticket without introducing media publishing yet.
+1. Add receiver-side WebRTC peer connection and video rendering on Android TV.
+2. Add the first ReplayKit Broadcast Upload Extension shell without attempting native streaming yet.
+3. Add sender offer/answer forwarding and ICE relay on top of the existing iOS signaling socket.
