@@ -8,6 +8,11 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 
 ## Implemented in this turn
 
+- `apps/ios-sender` now has a minimal native pairing-flow skeleton.
+- `SenderBackendClient.swift` and `SenderBackendModels.swift` can claim a pairing code against the existing backend and parse the returned session ticket.
+- `SenderViewModel.swift` now tracks backend URL, pairing code, sender name, claim loading, claimed success, and failure states.
+- `SenderHomeView.swift` now exposes backend URL entry, pairing-code entry, claim/disconnect actions, and a session summary card.
+- `apps/ios-sender` docs now describe the source-only iOS shell honestly and call out the next native step.
 - Root monorepo skeleton with workspace-friendly layout.
 - Root `.gitignore`.
 - Root `README.md` with exact local run steps.
@@ -17,7 +22,6 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - `services/backend` scaffold with Fastify + `ws`, in-memory session store, pairing-code creation, pairing-code claim, heartbeat, session end, and signaling WebSocket auth/relay.
 - `apps/web-receiver` scaffold that creates a receiver pairing code, opens signaling, and prepares a receive-only WebRTC peer connection.
 - `apps/dev-sender` disposable browser harness that claims a pairing code, opens signaling, and can publish a synthetic canvas stream.
-- `apps/ios-sender` source-only SwiftUI foundation with placeholder pairing UI and connection state model.
 - Browser sender -> web receiver smoke test confirmed end to end on localhost.
 - `apps/dev-sender` cleanup so the synthetic stream is torn down if the offer path fails.
 - Root smoke-test wording that tells you to open both Vite URLs printed by the receiver and sender terminals.
@@ -67,10 +71,10 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Android TV hardware decode and browser autoplay/codec behavior need device-level testing early.
 - This environment does not currently have `node` or `npm` on `PATH`, so in-session runtime verification was limited to static integration review rather than actually launching the services.
 - The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
-- The iOS sender foundation is scaffolded but does not capture, signal, or stream yet.
+- The iOS sender foundation can claim a pairing code and retain the returned session ticket, but it does not open a signaling socket or stream media yet.
 
 ## Next 3 implementation tasks
 
-1. Run the new dev-only smoke test end to end and tighten any protocol/runtime issues that show up.
-2. Harden backend session cleanup, reconnect windows, and heartbeat-driven expiry semantics.
-3. Replace the in-memory store with SQLite WAL while keeping the protocol and WebSocket contract unchanged.
+1. Add the iOS sender signaling socket and sender auth/session continuity on top of the new claim flow.
+2. Add sender session clear/end handling around the claimed iOS session ticket without introducing media publishing yet.
+3. Add the first ReplayKit Broadcast Upload Extension shell without attempting native streaming yet.

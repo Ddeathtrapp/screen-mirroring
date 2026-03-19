@@ -2,11 +2,9 @@ import Foundation
 
 enum SenderConnectionState: String, CaseIterable, Identifiable {
   case idle
-  case waitingForPairingCode
-  case readyToConnect
-  case connecting
-  case connected
-  case disconnecting
+  case readyToClaim
+  case claiming
+  case claimed
   case failed
 
   var id: String { rawValue }
@@ -14,21 +12,28 @@ enum SenderConnectionState: String, CaseIterable, Identifiable {
   var title: String {
     switch self {
     case .idle: return "Idle"
-    case .waitingForPairingCode: return "Waiting for pairing code"
-    case .readyToConnect: return "Ready to connect"
-    case .connecting: return "Connecting"
-    case .connected: return "Connected"
-    case .disconnecting: return "Disconnecting"
+    case .readyToClaim: return "Ready to claim"
+    case .claiming: return "Claiming"
+    case .claimed: return "Claimed"
     case .failed: return "Failed"
     }
   }
 
   var isInteractive: Bool {
     switch self {
-    case .idle, .waitingForPairingCode, .readyToConnect, .failed:
+    case .idle, .readyToClaim, .failed:
       return true
-    case .connecting, .connected, .disconnecting:
+    case .claiming, .claimed:
       return false
     }
   }
+}
+
+struct SenderSessionTicket: Identifiable, Equatable {
+  let id: String
+  let pairingCode: String
+  let senderName: String?
+  let senderToken: String
+  let state: String
+  let signalingURL: URL
 }

@@ -7,16 +7,20 @@ This is currently a source-only SwiftUI scaffold, not a finished Xcode project o
 ## What is here
 
 - SwiftUI app shell
-- placeholder pairing-code entry UI
-- placeholder connection state model
+- minimal backend client and request/response models that can claim a pairing code from the existing backend
+- backend URL, pairing-code, and sender-name inputs
+- honest loading, success, and failure states for the claim flow
+- a stored sender session ticket with `sessionId`, `senderToken`, backend `state`, and `signalingURL` for the next native step
 - notes for the future ReplayKit Broadcast Upload Extension and WebRTC integration
 
 ## What is not here yet
 
-- real pairing/signaling client
+- signaling socket
+- sender auth/session continuity after the claim step
 - ReplayKit screen capture
 - WebRTC media capture or transport
-- native backend integration
+- native backend integration beyond the claim step
+- any real end-to-end iOS streaming
 
 ## Suggested structure
 
@@ -24,6 +28,8 @@ This is currently a source-only SwiftUI scaffold, not a finished Xcode project o
 apps/ios-sender/
   README.md
   iOSSenderArchitecture.md
+  SenderBackendClient.swift
+  SenderBackendModels.swift
   ScreenMirroringSenderApp.swift
   SenderHomeView.swift
   SenderModels.swift
@@ -32,4 +38,4 @@ apps/ios-sender/
 
 ## Next step
 
-The next turn should add the actual signaling client and wire this shell into the shared backend contract.
+The next turn should add the sender signaling socket and carry the stored session ticket forward, but still stop short of ReplayKit and media publishing.

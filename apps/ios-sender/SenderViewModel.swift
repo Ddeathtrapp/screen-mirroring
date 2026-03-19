@@ -3,50 +3,97 @@ import Foundation
 
 @MainActor
 final class SenderViewModel: ObservableObject {
+  @Published var backendBaseURL: String = "http://localhost:8787"
   @Published var pairingCode: String = ""
   @Published var senderName: String = "iPhone Sender"
   @Published var connectionState: SenderConnectionState = .idle
-  @Published var statusMessage: String = "Enter a pairing code to begin."
+  @Published var statusMessage: String = "Enter a backend URL and pairing code to begin."
+  @Published var sessionTicket: SenderSessionTicket?
 
-  var canConnect: Bool {
-    !normalizedPairingCode.isEmpty && connectionState.isInteractive
+  var canClaim: Bool {
+    !normalizedPairingCode.isEmpty && !normalizedBackendURL.isEmpty && connectionState.isInteractive
   }
 
   var normalizedPairingCode: String {
-    pairingCode.replacingOccurrences(of: " ", with: "")
+    pairingCode.components(separatedBy: .whitespacesAndNewlines).joined()
+  }
+
+  var normalizedBackendURL: String {
+    backendBaseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  var normalizedSenderName: String {
+    senderName.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  func updateBackendURL(_ value: String) {
+    backendBaseURL = value
+    guard connectionState != .claiming else { return }
+
+    sessionTicket = nil
+    refreshIdleState()
   }
 
   func updatePairingCode(_ value: String) {
     pairingCode = value
-    if normalizedPairingCode.isEmpty {
-      connectionState = .idle
-      statusMessage = "Enter a pairing code to begin."
-    } else if connectionState == .idle || connectionState == .failed {
-      connectionState = .readyToConnect
-      statusMessage = "Ready to connect to the receiver."
+    guard connectionState != .claiming else { return }
+
+    sessionTicket = nil
+    refreshIdleState()
+  }
+
+  func claimTapped() {
+    guard canClaim else { return }
+
+    Task {
+      await claimCurrentSession()
     }
   }
 
-  func connectTapped() {
-    guard canConnect else { return }
-
-    connectionState = .connecting
-    statusMessage = "Placeholder connect action. TODO(Signaling): talk to backend."
-  }
-
   func disconnectTapped() {
-    connectionState = .disconnecting
-    statusMessage = "Placeholder disconnect action. TODO(Signaling): end the session."
-    connectionState = normalizedPairingCode.isEmpty ? .idle : .readyToConnect
-  }
-
-  func markConnected() {
-    connectionState = .connected
-    statusMessage = "Connected placeholder state. TODO(WebRTC): publish sender media."
+    let hasInputs = !normalizedBackendURL.isEmpty && !normalizedPairingCode.isEmpty
+    sessionTicket = nil
+    refreshIdleState()
+    if hasInputs {
+      statusMessage = "Claim cleared. TODO(Signaling): add sender auth/session continuity and teardown later."
+    }
   }
 
   func markFailed(_ message: String) {
     connectionState = .failed
     statusMessage = message
+  }
+
+  private func claimCurrentSession() async {
+    do {
+      connectionState = .claiming
+      statusMessage = "Claiming pairing code..."
+
+      let configuration = try SenderBackendConfiguration(baseURLString: normalizedBackendURL)
+      let client = SenderBackendClient(configuration: configuration)
+      let ticket = try await client.claimSenderSession(
+        pairingCode: normalizedPairingCode,
+        senderName: normalizedSenderName.isEmpty ? nil : normalizedSenderName
+      )
+
+      sessionTicket = ticket
+      connectionState = .claimed
+      statusMessage = "Claimed session \(ticket.id). TODO(Signaling): open the sender socket next."
+    } catch {
+      sessionTicket = nil
+      connectionState = .failed
+      statusMessage = error.localizedDescription
+    }
+  }
+
+  private func refreshIdleState() {
+    if normalizedBackendURL.isEmpty || normalizedPairingCode.isEmpty {
+      connectionState = .idle
+      statusMessage = "Enter a backend URL and pairing code to begin."
+      return
+    }
+
+    connectionState = .readyToClaim
+    statusMessage = "Ready to claim the pairing code."
   }
 }
