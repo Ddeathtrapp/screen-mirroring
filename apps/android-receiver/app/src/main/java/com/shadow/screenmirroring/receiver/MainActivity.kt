@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 
 class MainActivity : ComponentActivity() {
-  private val controller = ReceiverController()
+  private val controller by lazy { ReceiverController(applicationContext) }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -19,4 +19,3 @@ class MainActivity : ComponentActivity() {
     super.onDestroy()
   }
 }
-

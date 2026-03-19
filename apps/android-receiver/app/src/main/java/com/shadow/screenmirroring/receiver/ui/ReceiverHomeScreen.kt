@@ -36,8 +36,14 @@ fun ReceiverHomeScreen(controller: ReceiverController) {
       fontWeight = FontWeight.Bold,
     )
     Text(
-      text = "Pairing and signaling only. No media playback yet.",
+      text = "Pairing, signaling, and a basic remote video rendering shell. Playback is not polished yet.",
       style = MaterialTheme.typography.bodyLarge,
+    )
+
+    ReceiverVideoPanel(
+      controller = controller,
+      statusText = state.renderingStatusMessage,
+      modifier = Modifier.fillMaxWidth(),
     )
 
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -103,6 +109,7 @@ fun ReceiverHomeScreen(controller: ReceiverController) {
         Text(text = state.connectionState.title, style = MaterialTheme.typography.headlineSmall)
         Text(text = state.statusMessage)
         Text(text = state.signalingStatusMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text = state.renderingStatusMessage, color = MaterialTheme.colorScheme.onSurfaceVariant)
       }
     }
 
@@ -146,9 +153,8 @@ fun ReceiverHomeScreen(controller: ReceiverController) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
       ) {
         Text(text = "Next native work", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-        Text(text = "TODO(WebRTC): add a receiver peer connection and video rendering.")
-        Text(text = "TODO(Reconnect): harden heartbeat and reconnect behavior.")
-        Text(text = "TODO(Media): wire in actual playback only after the signaling shell is stable.")
+        Text(text = "TODO(WebRTC): harden reconnect and ICE retry behavior.")
+        Text(text = "TODO(Media): polish rendering, scaling, and playback behavior after the basic remote track path is stable.")
       }
     }
   }

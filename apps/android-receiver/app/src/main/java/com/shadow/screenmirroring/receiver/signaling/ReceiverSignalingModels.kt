@@ -95,6 +95,11 @@ sealed class ReceiverSignalingMessage {
   }
 }
 
+sealed class ReceiverSignalingOutboundMessage {
+  data class SignalAnswer(val sessionId: String, val sdp: String) : ReceiverSignalingOutboundMessage()
+  data class SignalIceCandidate(val sessionId: String, val candidate: ReceiverSignalingIceCandidate) : ReceiverSignalingOutboundMessage()
+}
+
 data class ReceiverSignalingIceCandidate(
   val candidate: String?,
   val sdpMid: String?,
@@ -111,5 +116,32 @@ data class ReceiverSignalingIceCandidate(
       )
     }
   }
+
+  fun toJson(): JSONObject {
+    return JSONObject().apply {
+      put("candidate", candidate)
+      put("sdpMid", sdpMid)
+      if (sdpMLineIndex != null) {
+        put("sdpMLineIndex", sdpMLineIndex)
+      }
+      if (usernameFragment != null) {
+        put("usernameFragment", usernameFragment)
+      }
+    }
+  }
 }
 
+fun ReceiverSignalingOutboundMessage.toJson(): JSONObject {
+  return when (this) {
+    is ReceiverSignalingOutboundMessage.SignalAnswer -> JSONObject().apply {
+      put("type", "signal.answer")
+      put("sessionId", sessionId)
+      put("sdp", sdp)
+    }
+    is ReceiverSignalingOutboundMessage.SignalIceCandidate -> JSONObject().apply {
+      put("type", "signal.ice-candidate")
+      put("sessionId", sessionId)
+      put("candidate", candidate.toJson())
+    }
+  }
+}

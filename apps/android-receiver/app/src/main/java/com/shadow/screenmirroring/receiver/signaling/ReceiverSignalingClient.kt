@@ -22,6 +22,8 @@ class ReceiverSignalingClient(
   @Volatile
   private var socket: Socket? = null
   @Volatile
+  private var output: BufferedOutputStream? = null
+  @Volatile
   private var readerThread: Thread? = null
   @Volatile
   private var didFinish = false
@@ -54,6 +56,13 @@ class ReceiverSignalingClient(
     finish(expected = true, reason = reason)
   }
 
+  fun send(message: ReceiverSignalingOutboundMessage) {
+    val currentOutput = output ?: throw IllegalStateException("Signaling socket is not connected.")
+    synchronized(currentOutput) {
+      writeFrame(currentOutput, opcode = 0x1, payload = message.toJson().toString().toByteArray(Charsets.UTF_8))
+    }
+  }
+
   private fun runConnection() {
     try {
       val uri = toWebSocketUri(sessionTicket.signalingUrl)
@@ -61,9 +70,10 @@ class ReceiverSignalingClient(
       socket = openedSocket
 
       val input = BufferedInputStream(openedSocket.getInputStream())
-      val output = BufferedOutputStream(openedSocket.getOutputStream())
-      performHandshake(uri, input, output)
-      readLoop(input, output)
+      val outputStream = BufferedOutputStream(openedSocket.getOutputStream())
+      this.output = outputStream
+      performHandshake(uri, input, outputStream)
+      readLoop(input, outputStream)
       finish(expected = disconnectRequested, reason = "Signaling disconnected.")
     } catch (error: Exception) {
       if (disconnectRequested) {
@@ -73,6 +83,7 @@ class ReceiverSignalingClient(
       }
     } finally {
       closeSocket()
+      this.output = null
       readerThread = null
     }
   }
@@ -237,9 +248,11 @@ class ReceiverSignalingClient(
 
   private fun sendCloseFrame(reason: String) {
     val currentSocket = socket ?: return
-    val output = BufferedOutputStream(currentSocket.getOutputStream())
-    val payload = reason.toByteArray(Charsets.UTF_8)
-    writeFrame(output, opcode = 0x8, payload = payload)
+    val currentOutput = output ?: BufferedOutputStream(currentSocket.getOutputStream())
+    synchronized(currentOutput) {
+      val payload = reason.toByteArray(Charsets.UTF_8)
+      writeFrame(currentOutput, opcode = 0x8, payload = payload)
+    }
   }
 
   private fun openSocket(uri: URI): Socket {
@@ -354,6 +367,7 @@ class ReceiverSignalingClient(
   private fun closeSocket() {
     runCatching { socket?.close() }
     socket = null
+    output = null
   }
 
   private data class Frame(

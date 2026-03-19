@@ -1,5 +1,6 @@
 package com.shadow.screenmirroring.receiver
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
@@ -10,13 +11,16 @@ import com.shadow.screenmirroring.receiver.backend.ReceiverBackendConfiguration
 import com.shadow.screenmirroring.receiver.signaling.ReceiverSignalingClient
 import com.shadow.screenmirroring.receiver.signaling.ReceiverSignalingLifecycleEvent
 import com.shadow.screenmirroring.receiver.signaling.ReceiverSignalingMessage
+import com.shadow.screenmirroring.receiver.signaling.ReceiverSignalingOutboundMessage
+import com.shadow.screenmirroring.receiver.webrtc.ReceiverWebRtcSession
+import org.webrtc.SurfaceViewRenderer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
-class ReceiverController {
+class ReceiverController(private val appContext: Context) {
   private val mainHandler = Handler(Looper.getMainLooper())
   private val executor: ExecutorService = Executors.newSingleThreadExecutor()
   private val logFormat = SimpleDateFormat("HH:mm:ss", Locale.US)
@@ -25,13 +29,22 @@ class ReceiverController {
     private set
 
   private var signalingClient: ReceiverSignalingClient? = null
+  private var webRtcSession: ReceiverWebRtcSession? = null
+  private var videoRenderer: SurfaceViewRenderer? = null
+  private var activeSessionId: String? = null
 
   val canCreatePairingCode: Boolean
-    get() = uiState.backendBaseUrl.isNotBlank() && uiState.connectionState !in setOf(
-      ReceiverConnectionState.CreatingCode,
-      ReceiverConnectionState.ConnectingSignaling,
-      ReceiverConnectionState.Disconnecting,
-    )
+    get() = uiState.backendBaseUrl.isNotBlank() &&
+      uiState.connectionState !in setOf(
+        ReceiverConnectionState.CreatingCode,
+        ReceiverConnectionState.ConnectingSignaling,
+        ReceiverConnectionState.SignalingConnected,
+        ReceiverConnectionState.Negotiating,
+        ReceiverConnectionState.RemoteTrackAttached,
+        ReceiverConnectionState.RenderingVideo,
+        ReceiverConnectionState.WebRtcFailed,
+        ReceiverConnectionState.Disconnecting,
+      )
 
   val canConnectSignaling: Boolean
     get() = uiState.sessionTicket != null &&
@@ -39,6 +52,10 @@ class ReceiverController {
       uiState.connectionState !in setOf(
         ReceiverConnectionState.CreatingCode,
         ReceiverConnectionState.ConnectingSignaling,
+        ReceiverConnectionState.SignalingConnected,
+        ReceiverConnectionState.Negotiating,
+        ReceiverConnectionState.RemoteTrackAttached,
+        ReceiverConnectionState.RenderingVideo,
         ReceiverConnectionState.Disconnecting,
       )
 
@@ -47,6 +64,10 @@ class ReceiverController {
       uiState.connectionState in setOf(
         ReceiverConnectionState.ConnectingSignaling,
         ReceiverConnectionState.SignalingConnected,
+        ReceiverConnectionState.Negotiating,
+        ReceiverConnectionState.RemoteTrackAttached,
+        ReceiverConnectionState.RenderingVideo,
+        ReceiverConnectionState.WebRtcFailed,
         ReceiverConnectionState.Disconnecting,
       )
 
@@ -62,22 +83,53 @@ class ReceiverController {
     uiState = updated
 
     if (updated.backendBaseUrl.isBlank()) {
-      if (updated.sessionTicket != null || signalingClient != null) {
+      if (updated.sessionTicket != null || signalingClient != null || webRtcSession != null) {
         clearSession("Backend URL cleared. Cleared the current receiver session.")
       } else {
         uiState = updated.copy(
           connectionState = ReceiverConnectionState.Idle,
           statusMessage = "Enter a backend URL and receiver name to create a pairing code.",
           signalingStatusMessage = "No receiver session yet.",
+          renderingStatusMessage = "No remote video attached yet.",
         )
       }
-    } else if (updated.sessionTicket != null || signalingClient != null) {
+    } else if (updated.sessionTicket != null || signalingClient != null || webRtcSession != null) {
       clearSession("Backend URL changed. Cleared the current receiver session.")
     }
   }
 
   fun updateReceiverName(value: String) {
     uiState = uiState.copy(receiverName = value)
+  }
+
+  fun bindVideoRenderer(renderer: SurfaceViewRenderer) {
+    if (videoRenderer === renderer) {
+      return
+    }
+
+    videoRenderer = renderer
+    webRtcSession?.bindRenderer(renderer)
+
+    if (
+      uiState.connectionState !in setOf(ReceiverConnectionState.RemoteTrackAttached, ReceiverConnectionState.RenderingVideo) &&
+      (uiState.sessionTicket != null || signalingClient != null || webRtcSession != null)
+    ) {
+      setState(renderingStatusMessage = "Video renderer attached. Waiting for remote track.")
+    }
+  }
+
+  fun unbindVideoRenderer(renderer: SurfaceViewRenderer) {
+    if (videoRenderer !== renderer) {
+      return
+    }
+
+    if (webRtcSession != null) {
+      webRtcSession?.unbindRenderer(renderer)
+    } else {
+      runCatching { renderer.release() }
+    }
+    videoRenderer = null
+    setState(renderingStatusMessage = "Video renderer detached.")
   }
 
   fun createPairingCode() {
@@ -92,6 +144,7 @@ class ReceiverController {
       connectionState = ReceiverConnectionState.CreatingCode,
       statusMessage = "Creating pairing code...",
       signalingStatusMessage = "Waiting for backend session.",
+      renderingStatusMessage = "No remote video attached yet.",
       sessionTicket = null,
       clearSessionTicket = true,
     )
@@ -103,20 +156,26 @@ class ReceiverController {
         val session = backend.createPairingCode(receiverName)
         signalingClient?.disconnect("Replaced by a new receiver session.")
         signalingClient = null
+        disposeWebRtcSession()
+        activeSessionId = session.sessionId
         setState(
           connectionState = ReceiverConnectionState.CodeCreated,
           statusMessage = "Created pairing code ${session.pairingCode}. Ready to connect signaling.",
           signalingStatusMessage = "Signaling URL is ready but not connected yet.",
+          renderingStatusMessage = "No remote video attached yet.",
           sessionTicket = session,
         )
         appendLog("Created session ${session.sessionId} for pairing code ${session.pairingCode}.")
       } catch (error: Exception) {
         signalingClient?.disconnect("Pairing code creation failed.")
         signalingClient = null
+        disposeWebRtcSession()
+        activeSessionId = null
         setState(
           connectionState = ReceiverConnectionState.Idle,
           statusMessage = friendlyMessage(error),
           signalingStatusMessage = "No receiver session yet.",
+          renderingStatusMessage = "No remote video attached yet.",
           sessionTicket = null,
           clearSessionTicket = true,
         )
@@ -139,12 +198,14 @@ class ReceiverController {
       return
     }
 
+    activeSessionId = ticket.sessionId
     val client = ReceiverSignalingClient(ticket)
     signalingClient = client
     setState(
       connectionState = ReceiverConnectionState.ConnectingSignaling,
       statusMessage = "Connecting signaling for session ${ticket.sessionId}...",
       signalingStatusMessage = "Opening signaling socket at ${ticket.signalingUrl}.",
+      renderingStatusMessage = "Waiting for signaling join.",
     )
     appendLog("Connecting signaling for session ${ticket.sessionId}.")
 
@@ -155,6 +216,7 @@ class ReceiverController {
             connectionState = ReceiverConnectionState.ConnectingSignaling,
             statusMessage = "Connecting signaling for session ${ticket.sessionId}...",
             signalingStatusMessage = "Opening signaling socket at ${ticket.signalingUrl}.",
+            renderingStatusMessage = "Waiting for signaling join.",
           )
         }
 
@@ -163,32 +225,38 @@ class ReceiverController {
             connectionState = ReceiverConnectionState.SignalingConnected,
             statusMessage = "Signaling connected for session ${ticket.sessionId}.",
             signalingStatusMessage = "Signaling connected.",
+            renderingStatusMessage = "Waiting for sender offer.",
           )
         }
 
         ReceiverSignalingLifecycleEvent.Disconnected -> {
           signalingClient = null
+          disposeWebRtcSession()
           if (uiState.sessionTicket == null) {
             setState(
               connectionState = ReceiverConnectionState.Idle,
               statusMessage = "Signaling disconnected.",
               signalingStatusMessage = "No receiver session yet.",
+              renderingStatusMessage = "No remote video attached yet.",
             )
           } else {
             setState(
               connectionState = ReceiverConnectionState.CodeCreated,
               statusMessage = "Signaling disconnected. Receiver session retained.",
               signalingStatusMessage = "Ready to reconnect signaling.",
+              renderingStatusMessage = "Remote video stopped.",
             )
           }
         }
 
         is ReceiverSignalingLifecycleEvent.Failed -> {
           signalingClient = null
+          disposeWebRtcSession()
           setState(
             connectionState = ReceiverConnectionState.SignalingFailed,
             statusMessage = "Signaling failed: ${event.reason}",
             signalingStatusMessage = "Signaling failed: ${event.reason}",
+            renderingStatusMessage = "Signaling failed.",
           )
         }
       }
@@ -202,37 +270,84 @@ class ReceiverController {
             connectionState = ReceiverConnectionState.SignalingConnected,
             statusMessage = "Joined signaling session ${message.sessionId} as ${message.role} (${message.state}).",
             signalingStatusMessage = message.summary,
+            renderingStatusMessage = "Waiting for sender offer.",
           )
         }
 
         is ReceiverSignalingMessage.SessionState -> {
           appendLog(message.summary)
-          if (message.state.equals("ended", ignoreCase = true)) {
-            setState(
-              connectionState = ReceiverConnectionState.CodeCreated,
+          val lowerState = message.state.lowercase(Locale.US)
+          when (lowerState) {
+            "negotiating" -> setState(
+              connectionState = ReceiverConnectionState.Negotiating,
+              statusMessage = message.summary,
+              signalingStatusMessage = message.summary,
+              renderingStatusMessage = "Negotiating WebRTC answer.",
+            )
+
+            "connected" -> setState(
+              connectionState = ReceiverConnectionState.SignalingConnected,
               statusMessage = message.summary,
               signalingStatusMessage = message.summary,
             )
-          } else {
-            setState(signalingStatusMessage = message.summary)
+
+            "ended", "closed", "terminated" -> {
+              disposeWebRtcSession()
+              setState(
+                connectionState = ReceiverConnectionState.CodeCreated,
+                statusMessage = message.summary,
+                signalingStatusMessage = message.summary,
+                renderingStatusMessage = "Remote video stopped.",
+              )
+            }
+
+            else -> setState(
+              statusMessage = message.summary,
+              signalingStatusMessage = message.summary,
+            )
           }
         }
 
         is ReceiverSignalingMessage.SessionError -> {
           appendLog(message.summary)
           signalingClient = null
+          disposeWebRtcSession()
           setState(
             connectionState = ReceiverConnectionState.SignalingFailed,
             statusMessage = "Signaling error: ${message.error.code} - ${message.error.message}",
             signalingStatusMessage = message.summary,
+            renderingStatusMessage = "Signaling failed.",
           )
         }
 
-        is ReceiverSignalingMessage.SignalOffer,
-        is ReceiverSignalingMessage.SignalAnswer,
-        is ReceiverSignalingMessage.SignalIceCandidate,
-        is ReceiverSignalingMessage.Unknown,
-        -> {
+        is ReceiverSignalingMessage.SignalOffer -> {
+          appendLog(message.summary)
+          setState(
+            connectionState = ReceiverConnectionState.Negotiating,
+            statusMessage = "Received sender offer for session ${message.sessionId}. Creating answer.",
+            signalingStatusMessage = message.summary,
+            renderingStatusMessage = "Negotiating WebRTC answer.",
+          )
+
+          executor.execute {
+            handleOffer(message.sessionId, message.sdp)
+          }
+        }
+
+        is ReceiverSignalingMessage.SignalIceCandidate -> {
+          appendLog(message.summary)
+          executor.execute {
+            ensureWebRtcSession().addRemoteIceCandidate(message.candidate)
+          }
+          setState(signalingStatusMessage = message.summary)
+        }
+
+        is ReceiverSignalingMessage.SignalAnswer -> {
+          appendLog(message.summary)
+          setState(signalingStatusMessage = message.summary)
+        }
+
+        is ReceiverSignalingMessage.Unknown -> {
           appendLog(message.summary)
           setState(signalingStatusMessage = message.summary)
         }
@@ -243,10 +358,12 @@ class ReceiverController {
       client.connect()
     } catch (error: Exception) {
       signalingClient = null
+      disposeWebRtcSession()
       setState(
         connectionState = ReceiverConnectionState.SignalingFailed,
         statusMessage = friendlyMessage(error),
         signalingStatusMessage = "Signaling failed.",
+        renderingStatusMessage = "Signaling failed.",
       )
       appendLog("Signaling connect failed: ${friendlyMessage(error)}")
     }
@@ -265,6 +382,7 @@ class ReceiverController {
           connectionState = ReceiverConnectionState.CodeCreated,
           statusMessage = "Receiver session retained.",
           signalingStatusMessage = "Ready to reconnect signaling.",
+          renderingStatusMessage = "Remote video stopped.",
         )
       }
       return
@@ -274,9 +392,11 @@ class ReceiverController {
       connectionState = ReceiverConnectionState.Disconnecting,
       statusMessage = "Disconnecting signaling...",
       signalingStatusMessage = "Closing signaling socket.",
+      renderingStatusMessage = "Stopping remote video.",
     )
     appendLog("Disconnecting signaling.")
     signalingClient = null
+    disposeWebRtcSession()
     client.disconnect("User requested receiver disconnect.")
   }
 
@@ -284,11 +404,14 @@ class ReceiverController {
     val client = signalingClient
     signalingClient = null
     client?.disconnect(reason)
+    disposeWebRtcSession()
+    activeSessionId = null
 
     setState(
       connectionState = ReceiverConnectionState.Idle,
       statusMessage = reason,
       signalingStatusMessage = "No receiver session yet.",
+      renderingStatusMessage = "No remote video attached yet.",
       sessionTicket = null,
       clearSessionTicket = true,
     )
@@ -298,13 +421,90 @@ class ReceiverController {
   fun dispose() {
     signalingClient?.disconnect("Receiver controller disposed.")
     signalingClient = null
+    disposeWebRtcSession()
+    activeSessionId = null
     executor.shutdownNow()
+  }
+
+  private fun handleOffer(sessionId: String, sdp: String) {
+    try {
+      val session = ensureWebRtcSession()
+      videoRenderer?.let { session.bindRenderer(it) }
+      val answer = session.acceptOffer(sdp)
+      signalingClient?.send(
+        ReceiverSignalingOutboundMessage.SignalAnswer(
+          sessionId = sessionId,
+          sdp = answer,
+        ),
+      )
+      appendLog("Sent receiver answer for session $sessionId.")
+      setState(renderingStatusMessage = "Answer sent. Waiting for remote video.")
+    } catch (error: Exception) {
+      signalingClient?.disconnect("WebRTC negotiation failed.")
+      signalingClient = null
+      disposeWebRtcSession()
+      setState(
+        connectionState = ReceiverConnectionState.WebRtcFailed,
+        statusMessage = "WebRTC failed: ${friendlyMessage(error)}",
+        signalingStatusMessage = "WebRTC failed.",
+        renderingStatusMessage = "WebRTC failed.",
+      )
+      appendLog("WebRTC negotiation failed: ${friendlyMessage(error)}")
+    }
+  }
+
+  private fun ensureWebRtcSession(): ReceiverWebRtcSession {
+    webRtcSession?.let { return it }
+
+    val session = ReceiverWebRtcSession(
+      appContext = appContext,
+      onStateChange = { state, message ->
+        setState(
+          connectionState = state,
+          statusMessage = message,
+          renderingStatusMessage = message,
+        )
+      },
+      onLocalIceCandidate = { candidate ->
+        activeSessionId?.let { sessionId ->
+          try {
+            signalingClient?.send(
+              ReceiverSignalingOutboundMessage.SignalIceCandidate(
+                sessionId = sessionId,
+                candidate = candidate,
+              ),
+            )
+          } catch (error: Exception) {
+            setState(
+              connectionState = ReceiverConnectionState.WebRtcFailed,
+              statusMessage = "Failed to send local ICE candidate: ${friendlyMessage(error)}",
+              signalingStatusMessage = "WebRTC failed.",
+              renderingStatusMessage = "WebRTC failed.",
+            )
+            appendLog("Failed to send local ICE candidate: ${friendlyMessage(error)}")
+          }
+        }
+      },
+    )
+
+    webRtcSession = session
+    if (videoRenderer != null) {
+      session.bindRenderer(videoRenderer!!)
+    }
+    return session
+  }
+
+  private fun disposeWebRtcSession() {
+    webRtcSession?.dispose()
+    webRtcSession = null
+    setState(renderingStatusMessage = "No remote video attached yet.")
   }
 
   private fun setState(
     connectionState: ReceiverConnectionState? = null,
     statusMessage: String? = null,
     signalingStatusMessage: String? = null,
+    renderingStatusMessage: String? = null,
     sessionTicket: ReceiverSessionTicket? = null,
     clearSessionTicket: Boolean = false,
   ) {
@@ -314,6 +514,7 @@ class ReceiverController {
         connectionState = connectionState ?: current.connectionState,
         statusMessage = statusMessage ?: current.statusMessage,
         signalingStatusMessage = signalingStatusMessage ?: current.signalingStatusMessage,
+        renderingStatusMessage = renderingStatusMessage ?: current.renderingStatusMessage,
         sessionTicket = when {
           clearSessionTicket -> null
           sessionTicket != null -> sessionTicket

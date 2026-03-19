@@ -9,7 +9,9 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 ## Implemented in this turn
 
 - `apps/android-receiver` now has the first Android TV receiver shell packaged as a minimal Android Studio app target, with backend URL entry, receiver name entry, create-pairing-code flow, session display, signaling connect/disconnect, and honest receiver-side status updates.
-- `apps/android-receiver` docs now describe the receiver-side smoke test, including the emulator-local backend URL (`http://10.0.2.2:8787`) and the remaining non-media TODOs.
+- `apps/android-receiver` now includes a real WebRTC receiver peer-connection shell that answers sender offers, forwards ICE, and attaches the remote track to an on-screen renderer.
+- `apps/android-receiver` UI now distinguishes signaling connected, negotiating, remote track attached, rendering video, signaling failed, and WebRTC failed.
+- `apps/android-receiver` docs now describe the receiver-side smoke test, including the emulator-local backend URL (`http://10.0.2.2:8787`) and the remaining playback TODOs.
 - `apps/ios-sender` now has a minimal native claim-and-signaling shell plus a small Xcode project/workspace so the app can be opened and launched from Xcode.
 - `SenderBackendClient.swift` and `SenderBackendModels.swift` can claim a pairing code against the existing backend and parse the returned session ticket.
 - `SenderViewModel.swift` now tracks backend URL, pairing code, sender name, claim loading, claimed success, signaling connection attempts, signaling success, signaling failure, and clean disconnects.
@@ -79,10 +81,10 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
 - The iOS sender shell now has the project/workspace needed for Xcode launch and includes local-development HTTP allowances, but I could not run Xcode from this environment to verify the launch at runtime here.
 - The iOS sender shell can claim and connect signaling, but it still does not handle offer/answer or ICE beyond the existing signaling-shell handoff.
-- The Android TV receiver shell still does not render media or implement WebRTC, and it is limited to pairing plus signaling join state.
+- The Android TV receiver shell now includes the first real WebRTC peer connection and visible renderer surface, but playback polish and reconnect hardening are still pending.
 
 ## Next 3 implementation tasks
 
-1. Add receiver-side WebRTC peer connection and video rendering on Android TV.
+1. Harden Android TV reconnect and ICE restart behavior after the basic rendering path.
 2. Add the first ReplayKit Broadcast Upload Extension shell without attempting native streaming yet.
 3. Add sender offer/answer forwarding and ICE relay on top of the existing iOS signaling socket.

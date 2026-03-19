@@ -6,7 +6,11 @@ enum class ReceiverConnectionState {
   CodeCreated,
   ConnectingSignaling,
   SignalingConnected,
+  Negotiating,
+  RemoteTrackAttached,
+  RenderingVideo,
   SignalingFailed,
+  WebRtcFailed,
   Disconnecting,
 
   ;
@@ -18,7 +22,11 @@ enum class ReceiverConnectionState {
       CodeCreated -> "Code created"
       ConnectingSignaling -> "Connecting signaling"
       SignalingConnected -> "Signaling connected"
+      Negotiating -> "Negotiating"
+      RemoteTrackAttached -> "Remote track attached"
+      RenderingVideo -> "Rendering video"
       SignalingFailed -> "Signaling failed"
+      WebRtcFailed -> "WebRTC failed"
       Disconnecting -> "Disconnecting"
     }
 }
@@ -39,7 +47,7 @@ data class ReceiverUiState(
   val connectionState: ReceiverConnectionState = ReceiverConnectionState.Idle,
   val statusMessage: String = "Enter a backend URL and receiver name to create a pairing code.",
   val signalingStatusMessage: String = "No receiver session yet.",
+  val renderingStatusMessage: String = "No remote video attached yet.",
   val sessionTicket: ReceiverSessionTicket? = null,
   val logLines: List<String> = emptyList(),
 )
-
