@@ -28,8 +28,14 @@ Milestone 1 now has a small working foundation:
 - minimal web receiver that creates a pairing code, connects to signaling, and waits for a sender offer
 - backend logs for pairing, signaling joins, and relay events
 - disposable dev-only browser sender harness that claims a code, opens signaling, and can publish a synthetic canvas stream
+- browser sender -> web receiver smoke test has been confirmed end to end on localhost
+- basic iOS sender foundation under `apps/ios-sender`
 
 The harness is DEV ONLY and exists purely to smoke-test the current backend and receiver before any native sender work.
+
+The apparent low-FPS behavior in the dev sender was caused by browser background-tab throttling of the synthetic canvas loop, not by the backend, signaling, or receiver pipeline.
+
+Keep both the sender and receiver tabs visible during this dev-only browser smoke test so the sender canvas loop is not background-throttled.
 
 ## Local Setup
 
@@ -66,6 +72,7 @@ npm run dev:sender
 - open the web receiver first and click `Create pairing code`
 - copy the 6-digit pairing code from the receiver
 - open the dev sender harness and enter the pairing code
+- keep both sender and receiver tabs visible during the test so the synthetic canvas loop is not background-throttled
 - click `Connect`
 - click `Start synthetic stream`
 - confirm the receiver shows `Connected` and then displays the remote video
@@ -101,3 +108,4 @@ npm run check
 - Backend stays signaling/control-plane only.
 - SQLite and TURN are intentionally not implemented in this first scaffold.
 - The disposable sender harness proves the current sender-to-receiver control path, but it is not a native sender implementation.
+- The iOS sender is currently a source-only SwiftUI foundation with placeholder pairing and state UI.

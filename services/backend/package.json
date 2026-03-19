@@ -8,7 +8,7 @@
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@screen-mirroring/protocol": "workspace:*",
+    "@screen-mirroring/protocol": "0.0.0",
     "@fastify/cors": "^10.1.0",
     "fastify": "^5.3.0",
     "ws": "^8.18.3"
@@ -19,3 +19,4 @@
     "typescript": "^5.8.3"
   }
 }
+

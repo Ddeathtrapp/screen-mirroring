@@ -9,10 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@screen-mirroring/protocol": "workspace:*"
+    "@screen-mirroring/protocol": "0.0.0"
   },
   "devDependencies": {
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
   }
 }
+

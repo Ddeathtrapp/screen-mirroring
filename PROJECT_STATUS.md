@@ -17,11 +17,15 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - `services/backend` scaffold with Fastify + `ws`, in-memory session store, pairing-code creation, pairing-code claim, heartbeat, session end, and signaling WebSocket auth/relay.
 - `apps/web-receiver` scaffold that creates a receiver pairing code, opens signaling, and prepares a receive-only WebRTC peer connection.
 - `apps/dev-sender` disposable browser harness that claims a pairing code, opens signaling, and can publish a synthetic canvas stream.
+- `apps/ios-sender` source-only SwiftUI foundation with placeholder pairing UI and connection state model.
+- Browser sender -> web receiver smoke test confirmed end to end on localhost.
 - `apps/dev-sender` cleanup so the synthetic stream is torn down if the offer path fails.
 - Root smoke-test wording that tells you to open both Vite URLs printed by the receiver and sender terminals.
+- Browser smoke-test note that both tabs should stay visible because background-tab throttling can make the dev sender look low-FPS.
 - Clear `TODO(SQLite)` placeholders where durable persistence will replace in-memory state.
 - Browser/backend dev wiring for local cross-origin development.
 - Backend logs for pairing creation, sender claim, signaling connect, relay attempts, and disconnect transitions.
+- Low apparent FPS in the dev sender was traced to browser background-tab throttling of the synthetic canvas loop, not to the backend, signaling, or receiver pipeline.
 
 ## Chosen v1 architecture
 
@@ -63,6 +67,7 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Android TV hardware decode and browser autoplay/codec behavior need device-level testing early.
 - This environment does not currently have `node` or `npm` on `PATH`, so in-session runtime verification was limited to static integration review rather than actually launching the services.
 - The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
+- The iOS sender foundation is scaffolded but does not capture, signal, or stream yet.
 
 ## Next 3 implementation tasks
 
