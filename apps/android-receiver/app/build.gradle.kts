@@ -60,10 +60,9 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.ui:ui-viewinterop")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
-    implementation("org.webrtc:google-webrtc:1.0.32006")
+    implementation("com.infobip:google-webrtc:1.0.0035529")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

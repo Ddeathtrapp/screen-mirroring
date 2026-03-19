@@ -1,6 +1,8 @@
 package com.shadow.screenmirroring.receiver.webrtc
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.shadow.screenmirroring.receiver.ReceiverConnectionState
 import com.shadow.screenmirroring.receiver.signaling.ReceiverSignalingIceCandidate
 import org.webrtc.DefaultVideoDecoderFactory
@@ -33,6 +35,8 @@ class ReceiverWebRtcSession(
   private val audioDeviceModule = JavaAudioDeviceModule.builder(appContext).createAudioDeviceModule()
   private val factory: PeerConnectionFactory = createFactory()
 
+  private val mainHandler = Handler(Looper.getMainLooper())
+
   private var peerConnection: PeerConnection? = null
   private var remoteVideoTrack: VideoTrack? = null
   private var renderer: SurfaceViewRenderer? = null
@@ -51,13 +55,11 @@ class ReceiverWebRtcSession(
     val previousRenderer = this.renderer
     if (previousRenderer != null && previousRenderer !== renderer) {
       remoteVideoTrack?.removeSink(previousRenderer)
-      runCatching { previousRenderer.release() }
+      releaseRendererOnMainThread(previousRenderer)
     }
 
-    renderer.init(eglBase.eglBaseContext, null)
-    renderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
-    renderer.setEnableHardwareScaler(true)
-    renderer.setMirror(false)
+    initRendererOnMainThread(renderer)
+
     this.renderer = renderer
     rendererReady = true
     remoteVideoTrack?.addSink(renderer)
@@ -75,7 +77,7 @@ class ReceiverWebRtcSession(
     remoteVideoTrack?.removeSink(renderer)
     this.renderer = null
     rendererReady = false
-    runCatching { renderer.release() }
+    releaseRendererOnMainThread(renderer)
   }
 
   fun acceptOffer(sdp: String): String {
@@ -122,7 +124,10 @@ class ReceiverWebRtcSession(
       return
     }
 
-    runCatching { remoteVideoTrack?.removeSink(renderer) }
+    renderer?.let { currentRenderer ->
+      runCatching { remoteVideoTrack?.removeSink(currentRenderer) }
+      releaseRendererOnMainThread(currentRenderer)
+    }
     remoteVideoTrack = null
     renderer = null
     rendererReady = false
@@ -331,5 +336,28 @@ class ReceiverWebRtcSession(
 
   private companion object {
     val peerConnectionFactoryInitialized = AtomicBoolean(false)
+  }
+
+  private fun runOnMainThread(block: () -> Unit) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      block()
+    } else {
+      mainHandler.post(block)
+    }
+  }
+
+  private fun initRendererOnMainThread(renderer: SurfaceViewRenderer) {
+    runOnMainThread {
+      renderer.init(eglBase.eglBaseContext, null)
+      renderer.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+      renderer.setEnableHardwareScaler(true)
+      renderer.setMirror(false)
+    }
+  }
+
+  private fun releaseRendererOnMainThread(renderer: SurfaceViewRenderer) {
+    runOnMainThread {
+      runCatching { renderer.release() }
+    }
   }
 }
