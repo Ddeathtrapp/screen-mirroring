@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-03-18
+Updated: 2026-03-19
 
 ## Current vision
 
@@ -12,12 +12,16 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Root `.gitignore`.
 - Root `README.md` with exact local run steps.
 - Root `package.json` with minimal workspace scripts.
-- Empty folder scaffolding for `apps/ios-sender`, `apps/android-receiver`, `apps/web-receiver`, `services/backend`, `packages/protocol`, and `infra/docker`.
+- Initial scaffolding for `apps/ios-sender`, `apps/android-receiver`, `apps/web-receiver`, `apps/dev-sender`, `services/backend`, `packages/protocol`, and `infra/docker`.
 - `packages/protocol` with shared session states, pairing endpoints, WebSocket message types, and error codes.
 - `services/backend` scaffold with Fastify + `ws`, in-memory session store, pairing-code creation, pairing-code claim, heartbeat, session end, and signaling WebSocket auth/relay.
 - `apps/web-receiver` scaffold that creates a receiver pairing code, opens signaling, and prepares a receive-only WebRTC peer connection.
+- `apps/dev-sender` disposable browser harness that claims a pairing code, opens signaling, and can publish a synthetic canvas stream.
+- `apps/dev-sender` cleanup so the synthetic stream is torn down if the offer path fails.
+- Root smoke-test wording that tells you to open both Vite URLs printed by the receiver and sender terminals.
 - Clear `TODO(SQLite)` placeholders where durable persistence will replace in-memory state.
 - Browser/backend dev wiring for local cross-origin development.
+- Backend logs for pairing creation, sender claim, signaling connect, relay attempts, and disconnect transitions.
 
 ## Chosen v1 architecture
 
@@ -58,9 +62,10 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Mobile sender thermal throttling, battery drain, and unstable background behavior can reduce session quality.
 - Android TV hardware decode and browser autoplay/codec behavior need device-level testing early.
 - This environment does not currently have `node` or `npm` on `PATH`, so in-session runtime verification was limited to static integration review rather than actually launching the services.
+- The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
 
 ## Next 3 implementation tasks
 
-1. Add a minimal sender implementation for development, or begin the iOS sender shell, so offer/answer and ICE can be exercised end to end.
+1. Run the new dev-only smoke test end to end and tighten any protocol/runtime issues that show up.
 2. Harden backend session cleanup, reconnect windows, and heartbeat-driven expiry semantics.
 3. Replace the in-memory store with SQLite WAL while keeping the protocol and WebSocket contract unchanged.

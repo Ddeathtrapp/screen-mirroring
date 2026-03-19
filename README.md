@@ -8,6 +8,7 @@ Private, ad-free screen mirroring across iPhone/iPad sender, Android/Android TV 
 apps/
   ios-sender/
   android-receiver/
+  dev-sender/
   web-receiver/
 services/
   backend/
@@ -25,8 +26,10 @@ Milestone 1 now has a small working foundation:
 - shared protocol package
 - backend scaffold with in-memory pairing/session state
 - minimal web receiver that creates a pairing code, connects to signaling, and waits for a sender offer
+- backend logs for pairing, signaling joins, and relay events
+- disposable dev-only browser sender harness that claims a code, opens signaling, and can publish a synthetic canvas stream
 
-There is no sender app yet, so media will not flow end to end until the next implementation slice.
+The harness is DEV ONLY and exists purely to smoke-test the current backend and receiver before any native sender work.
 
 ## Local Setup
 
@@ -50,18 +53,23 @@ npm run dev:backend
 npm run dev:web
 ```
 
-4. Open the Vite URL shown in the terminal, usually:
+4. In a third terminal, start the dev sender harness:
 
 ```bash
-http://localhost:5173
+npm run dev:sender
 ```
 
-5. In the web UI:
+5. Open the Vite URLs shown by the receiver and sender terminals. Each app runs its own dev server, so the ports may differ.
 
-- leave the backend URL as `http://localhost:8787`
-- optionally enter a receiver name
-- click `Create pairing code`
-- confirm that a 6-digit pairing code appears and the receiver connects to signaling
+6. Smoke-test order:
+
+- open the web receiver first and click `Create pairing code`
+- copy the 6-digit pairing code from the receiver
+- open the dev sender harness and enter the pairing code
+- click `Connect`
+- click `Start synthetic stream`
+- confirm the receiver shows `Connected` and then displays the remote video
+- click `Disconnect` in the sender harness to end the session cleanly
 
 ## Useful Checks
 
@@ -92,3 +100,4 @@ npm run check
 - One sender, one receiver.
 - Backend stays signaling/control-plane only.
 - SQLite and TURN are intentionally not implemented in this first scaffold.
+- The disposable sender harness proves the current sender-to-receiver control path, but it is not a native sender implementation.

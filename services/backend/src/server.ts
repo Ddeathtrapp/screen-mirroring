@@ -41,6 +41,11 @@ app.get(restEndpoints.healthz.path, async () => ({ ok: true }));
 app.post(restEndpoints.createPairingCode.path, async (request, reply) => {
   const body = (request.body ?? {}) as CreatePairingCodeRequest;
   const created = store.createPairingCode(body);
+  app.log.info({
+    sessionId: created.sessionId,
+    pairingCode: created.pairingCode,
+    receiverName: body.receiverName ?? null,
+  }, "Created pairing code");
   return reply.code(201).send(created);
 });
 
@@ -50,6 +55,11 @@ app.post(restEndpoints.claimPairingCode.path, async (request, reply) => {
 
   try {
     const claimed = store.claimPairingCode(params.code, body);
+    app.log.info({
+      sessionId: claimed.sessionId,
+      pairingCode: params.code,
+      senderName: body.senderName ?? null,
+    }, "Sender claimed pairing code");
     broadcastSessionState(claimed.sessionId, claimed.state, "Sender claimed the pairing code.");
     return reply.code(200).send(claimed);
   } catch (error) {
@@ -92,6 +102,12 @@ app.post(restEndpoints.sessionEnd.path, async (request, reply) => {
       role: body.role,
       reason: body.reason,
     });
+    app.log.info({
+      sessionId: ended.sessionId,
+      role: body.role,
+      reason: body.reason ?? null,
+    }, "Session ended via HTTP endpoint");
+    broadcastSessionState(ended.sessionId, ended.state, body.reason ?? "Session ended.");
     return reply.code(200).send(ended);
   } catch (error) {
     return sendHttpError(reply, error);
@@ -126,6 +142,10 @@ wss.on("connection", (socket, request) => {
     const participantRole: ParticipantRole = role;
     const session = store.verifyParticipant(sessionId, token, participantRole);
     store.markConnected(session.sessionId, participantRole);
+    app.log.info({
+      sessionId: session.sessionId,
+      role: participantRole,
+    }, "Participant connected to signaling");
     const authedSocket = socket as AuthedSocket;
     authedSocket.sessionId = session.sessionId;
     authedSocket.role = participantRole;
@@ -156,6 +176,11 @@ wss.on("connection", (socket, request) => {
       case "signal.offer":
       case "signal.answer":
       case "signal.ice-candidate":
+        app.log.debug({
+          sessionId,
+          role,
+          type: message.type,
+        }, "Relaying signaling message");
         relayToPeer(sessionId, role, message);
         break;
       case "session.heartbeat":
@@ -163,6 +188,11 @@ wss.on("connection", (socket, request) => {
         break;
       case "session.end":
         store.endSession({ sessionId, token, role, reason: message.reason });
+        app.log.info({
+          sessionId,
+          role,
+          reason: message.reason ?? null,
+        }, "Session ended via signaling message");
         broadcastSessionState(sessionId, "ended", message.reason ?? "Session ended.");
         break;
       default:
@@ -173,6 +203,10 @@ wss.on("connection", (socket, request) => {
   socket.on("close", () => {
     try {
       const session = store.markReconnecting(sessionId);
+      app.log.info({
+        sessionId: session.sessionId,
+        state: session.state,
+      }, "Participant disconnected; session entering reconnecting");
       broadcastSessionState(session.sessionId, session.state, "Peer disconnected.");
     } catch {
       // Ignore close events for sessions that were already removed or never authenticated.
@@ -185,7 +219,15 @@ function relayToPeer(sessionId: string, role: "receiver" | "sender", message: Cl
   const peerSocket = findSocket(sessionId, peerRole);
   if (peerSocket && peerSocket.readyState === WebSocket.OPEN) {
     peerSocket.send(JSON.stringify(message satisfies ServerToClientMessage));
+    return;
   }
+
+  app.log.warn({
+    sessionId,
+    from: role,
+    to: peerRole,
+    type: message.type,
+  }, "Dropped signaling relay because peer socket is not open");
 }
 
 function findSocket(sessionId: string, role: "receiver" | "sender") {
