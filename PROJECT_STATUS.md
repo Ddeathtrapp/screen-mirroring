@@ -8,10 +8,11 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 
 ## Implemented in this turn
 
-- `apps/ios-sender` now has a minimal native pairing-flow skeleton.
+- `apps/ios-sender` now has a minimal native claim-and-signaling skeleton.
 - `SenderBackendClient.swift` and `SenderBackendModels.swift` can claim a pairing code against the existing backend and parse the returned session ticket.
-- `SenderViewModel.swift` now tracks backend URL, pairing code, sender name, claim loading, claimed success, and failure states.
-- `SenderHomeView.swift` now exposes backend URL entry, pairing-code entry, claim/disconnect actions, and a session summary card.
+- `SenderViewModel.swift` now tracks backend URL, pairing code, sender name, claim loading, claimed success, signaling connection attempts, signaling success, signaling failure, and clean disconnects.
+- `SenderHomeView.swift` now exposes backend URL entry, pairing-code entry, claim, connect-signaling, disconnect, and clear-claim actions, plus compact claimed-session and signaling summaries.
+- `SenderModels.swift` now holds only the connection-state and session-ticket model types.
 - `apps/ios-sender` docs now describe the source-only iOS shell honestly and call out the next native step.
 - Root monorepo skeleton with workspace-friendly layout.
 - Root `.gitignore`.
@@ -30,6 +31,7 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Browser/backend dev wiring for local cross-origin development.
 - Backend logs for pairing creation, sender claim, signaling connect, relay attempts, and disconnect transitions.
 - Low apparent FPS in the dev sender was traced to browser background-tab throttling of the synthetic canvas loop, not to the backend, signaling, or receiver pipeline.
+- The source-only iOS shell now contains the code paths to claim a session and open the backend signaling socket returned by the claim response, but it still does not publish media and has not been run here as a packaged iOS app.
 
 ## Chosen v1 architecture
 
@@ -71,10 +73,11 @@ Build a private, ad-free casting system that lets an iPhone or iPad mirror to ei
 - Android TV hardware decode and browser autoplay/codec behavior need device-level testing early.
 - This environment does not currently have `node` or `npm` on `PATH`, so in-session runtime verification was limited to static integration review rather than actually launching the services.
 - The disposable sender harness now proves the sender-to-receiver control path, but it is not a native sender implementation.
-- The iOS sender foundation can claim a pairing code and retain the returned session ticket, but it does not open a signaling socket or stream media yet.
+- The iOS sender shell is still source-only and has not been compiled or run as a real Xcode app in this environment.
+- The iOS sender shell can claim and connect signaling, but it still does not handle offer/answer, ICE, ReplayKit, or WebRTC media.
 
 ## Next 3 implementation tasks
 
-1. Add the iOS sender signaling socket and sender auth/session continuity on top of the new claim flow.
-2. Add sender session clear/end handling around the claimed iOS session ticket without introducing media publishing yet.
+1. Add sender offer/answer forwarding and ICE relay on top of the existing iOS signaling socket.
+2. Add sender session continuity and end handling around the claimed iOS session ticket without introducing media publishing yet.
 3. Add the first ReplayKit Broadcast Upload Extension shell without attempting native streaming yet.

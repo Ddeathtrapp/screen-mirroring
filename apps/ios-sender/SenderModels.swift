@@ -5,6 +5,10 @@ enum SenderConnectionState: String, CaseIterable, Identifiable {
   case readyToClaim
   case claiming
   case claimed
+  case connectingSignaling
+  case signalingConnected
+  case signalingFailed
+  case disconnectingSignaling
   case failed
 
   var id: String { rawValue }
@@ -15,15 +19,19 @@ enum SenderConnectionState: String, CaseIterable, Identifiable {
     case .readyToClaim: return "Ready to claim"
     case .claiming: return "Claiming"
     case .claimed: return "Claimed"
+    case .connectingSignaling: return "Connecting signaling"
+    case .signalingConnected: return "Signaling connected"
+    case .signalingFailed: return "Signaling failed"
+    case .disconnectingSignaling: return "Disconnecting signaling"
     case .failed: return "Failed"
     }
   }
 
   var isInteractive: Bool {
     switch self {
-    case .idle, .readyToClaim, .failed:
+    case .idle, .readyToClaim, .claimed, .signalingFailed, .failed:
       return true
-    case .claiming, .claimed:
+    case .claiming, .connectingSignaling, .signalingConnected, .disconnectingSignaling:
       return false
     }
   }

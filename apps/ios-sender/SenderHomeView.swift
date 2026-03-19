@@ -24,7 +24,7 @@ struct SenderHomeView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("iOS Sender Foundation")
         .font(.system(.largeTitle, design: .rounded).weight(.bold))
-      Text("Native pairing and claim flow only. No ReplayKit or WebRTC publishing yet.")
+      Text("Native pairing and signaling join only. No ReplayKit or WebRTC publishing yet.")
         .foregroundStyle(.secondary)
     }
   }
@@ -69,14 +69,28 @@ struct SenderHomeView: View {
         .buttonStyle(.borderedProminent)
         .disabled(!viewModel.canClaim)
 
-        Button("Clear") {
-          viewModel.disconnectTapped()
+        Button("Connect signaling") {
+          viewModel.connectSignalingTapped()
+        }
+        .buttonStyle(.bordered)
+        .disabled(!viewModel.canConnectSignaling)
+
+        Button("Disconnect signaling") {
+          viewModel.disconnectSignalingTapped()
+        }
+        .buttonStyle(.bordered)
+        .disabled(!viewModel.canDisconnectSignaling)
+      }
+
+      HStack {
+        Button("Clear claim") {
+          viewModel.clearClaimTapped()
         }
         .buttonStyle(.bordered)
         .disabled(viewModel.sessionTicket == nil && viewModel.connectionState == .idle)
       }
 
-      if viewModel.connectionState == .claiming {
+      if viewModel.connectionState == .claiming || viewModel.connectionState == .connectingSignaling || viewModel.connectionState == .disconnectingSignaling {
         ProgressView()
       }
     }
@@ -95,17 +109,21 @@ struct SenderHomeView: View {
       Text(viewModel.statusMessage)
         .foregroundStyle(.secondary)
 
-      if let session = viewModel.sessionTicket {
-        Divider()
-        Text("Session ID: \(session.id)")
-        Text("Backend state: \(session.state)")
-        Text("Pairing code: \(session.pairingCode)")
-        if let senderName = session.senderName {
-          Text("Sender name: \(senderName)")
+      Text(viewModel.signalingStatusMessage)
+        .foregroundStyle(.secondary)
+
+      Divider()
+
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Claimed Session")
+          .font(.subheadline.weight(.semibold))
+        Text(viewModel.claimedSessionSummary)
+        if let session = viewModel.sessionTicket {
+          Text("Backend state: \(session.state)")
+          Text("Signaling URL: \(session.signalingURL.absoluteString)")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
         }
-        Text("Signaling URL: \(session.signalingURL.absoluteString)")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -117,7 +135,7 @@ struct SenderHomeView: View {
     VStack(alignment: .leading, spacing: 8) {
       Text("Next native work")
         .font(.headline)
-      Text("TODO(Signaling): open a sender WebSocket after claim success and forward session events.")
+      Text("TODO(Signaling): add offer/answer and ICE handling on top of the connected sender socket.")
       Text("TODO(Auth): persist sender token and session state for the next stage.")
       Text("TODO(ReplayKit): add a Broadcast Upload Extension for screen capture.")
       Text("TODO(WebRTC): add sender media publishing and ICE handling.")
